@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    @apply bg-white text-gray-900;
+    line-height: 1.5;
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  button {
+    @apply cursor-pointer border-none font-sans;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply border border-gray-300 rounded-md font-sans w-full bg-white text-gray-900;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    @apply outline-none border-black;
+  }
+}

@@ -1,0 +1,27 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modèle Devis pour gérer les devis de construction
+model Devis {
+  id          String   @id @default(uuid()) // UUID comme clé primaire
+  client      String   // Nom du client
+  typeTravaux String   // Type de travaux (carrelage, peinture, plomberie, etc.)
+  dateDevis   DateTime // Date du devis
+  montant     Float    // Montant du devis
+  statut      String   // Statut : en attente, validé, annulé
+  materiaux   String?  // Matériaux utilisés (optionnel)
+  notes       String?  // Notes additionnelles (optionnel)
+  createdAt   DateTime @default(now()) // Date de création automatique
+
+  @@map("devis") // Nom de la table en base de données
+}
+
