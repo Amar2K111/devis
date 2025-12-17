@@ -53,24 +53,19 @@ export async function POST(request: NextRequest) {
     if (fileExtension === '.pdf') {
       // Parser le PDF avec pdfjs-dist (Mozilla PDF.js) - solution fiable et compatible
       try {
-        // Utiliser le build legacy qui fonctionne mieux côté serveur sans worker
-        const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+        // Utiliser le build standard de pdfjs-dist
+        const pdfjsModule = await import('pdfjs-dist')
+        const pdfjs = pdfjsModule.default || pdfjsModule
         
-        // Désactiver complètement le worker pour l'environnement serveur
-        // Le worker n'est nécessaire que dans le navigateur
-        if (pdfjs.GlobalWorkerOptions) {
-          // Utiliser null au lieu de false pour désactiver complètement
-          pdfjs.GlobalWorkerOptions.workerSrc = null as any
-        }
+        // Ne pas configurer le worker - laisser pdfjs-dist utiliser son mode par défaut
+        // Le worker sera automatiquement désactivé en environnement Node.js
         
-        // Charger le document PDF sans worker
+        // Charger le document PDF
         const loadingTask = pdfjs.getDocument({
           data: new Uint8Array(buffer),
           useSystemFonts: true,
           verbosity: 0, // Réduire les logs
-          // Forcer le mode sans worker
-          disableAutoFetch: false,
-          disableStream: false,
+          // Ne pas spécifier de worker - pdfjs-dist gérera automatiquement
         })
         
         const pdfDocument = await loadingTask.promise
