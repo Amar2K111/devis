@@ -53,23 +53,24 @@ export async function POST(request: NextRequest) {
     if (fileExtension === '.pdf') {
       // Parser le PDF avec pdfjs-dist (Mozilla PDF.js) - solution fiable et compatible
       try {
-        // Importer pdfjs-dist de manière dynamique
-        // Utiliser le chemin correct selon la version
-        const pdfjsModule = await import('pdfjs-dist')
-        const pdfjs = pdfjsModule.default || pdfjsModule
+        // Utiliser le build legacy qui fonctionne mieux côté serveur sans worker
+        const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
         
-        // Désactiver le worker pour l'environnement serveur (Vercel/Node.js)
+        // Désactiver complètement le worker pour l'environnement serveur
         // Le worker n'est nécessaire que dans le navigateur
         if (pdfjs.GlobalWorkerOptions) {
-          pdfjs.GlobalWorkerOptions.workerSrc = false as any
+          // Utiliser null au lieu de false pour désactiver complètement
+          pdfjs.GlobalWorkerOptions.workerSrc = null as any
         }
         
-        // Charger le document PDF
+        // Charger le document PDF sans worker
         const loadingTask = pdfjs.getDocument({
           data: new Uint8Array(buffer),
           useSystemFonts: true,
-          // Désactiver le worker pour éviter les erreurs sur Vercel
           verbosity: 0, // Réduire les logs
+          // Forcer le mode sans worker
+          disableAutoFetch: false,
+          disableStream: false,
         })
         
         const pdfDocument = await loadingTask.promise
