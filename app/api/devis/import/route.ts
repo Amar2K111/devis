@@ -53,12 +53,45 @@ export async function POST(request: NextRequest) {
     if (fileExtension === '.pdf') {
       // Parser le PDF avec gestion d'erreur améliorée
       try {
+        // Import dynamique de pdf-parse avec gestion correcte des exports
         const pdfParseModule = await import('pdf-parse')
-        const pdfParseFn = (pdfParseModule as any).default || pdfParseModule
-        const pdfData = await pdfParseFn(Buffer.from(buffer), {
-          // Options pour éviter les erreurs DOM
-          max: 0, // Pas de limite de pages
-        })
+        
+        // pdf-parse peut être exporté de différentes manières selon la version
+        // Essayer différentes méthodes d'accès
+        let pdfParseFn: any = null
+        
+        // Méthode 1: default export
+        if (pdfParseModule.default && typeof pdfParseModule.default === 'function') {
+          pdfParseFn = pdfParseModule.default
+        }
+        // Méthode 2: export nommé
+        else if (typeof (pdfParseModule as any).pdfParse === 'function') {
+          pdfParseFn = (pdfParseModule as any).pdfParse
+        }
+        // Méthode 3: le module lui-même est la fonction
+        else if (typeof pdfParseModule === 'function') {
+          pdfParseFn = pdfParseModule
+        }
+        // Méthode 4: accès direct via propriétés
+        else {
+          const moduleAny = pdfParseModule as any
+          // Chercher une fonction dans le module
+          for (const key in moduleAny) {
+            if (typeof moduleAny[key] === 'function') {
+              pdfParseFn = moduleAny[key]
+              break
+            }
+          }
+        }
+        
+        // Vérifier que c'est bien une fonction
+        if (!pdfParseFn || typeof pdfParseFn !== 'function') {
+          console.error('Structure du module pdf-parse:', Object.keys(pdfParseModule))
+          throw new Error('pdf-parse n\'a pas pu être chargé correctement. Structure du module: ' + JSON.stringify(Object.keys(pdfParseModule)))
+        }
+        
+        // Appeler pdf-parse avec le buffer
+        const pdfData = await pdfParseFn(Buffer.from(buffer))
         const parsedData = parsePDFDevis(pdfData.text)
         if (!parsedData) {
           return NextResponse.json(
