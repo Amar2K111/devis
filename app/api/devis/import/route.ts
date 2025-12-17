@@ -53,40 +53,16 @@ export async function POST(request: NextRequest) {
     if (fileExtension === '.pdf') {
       // Parser le PDF avec gestion d'erreur améliorée
       try {
-        // Import dynamique de pdf-parse avec gestion correcte des exports
-        const pdfParseModule = await import('pdf-parse')
+        // Utiliser require pour éviter les problèmes de transpilation ES6
+        // pdf-parse fonctionne mieux avec require() dans un environnement Node.js
+        const pdfParse = require('pdf-parse')
         
-        // pdf-parse peut être exporté de différentes manières selon la version
-        // Essayer différentes méthodes d'accès
-        let pdfParseFn: any = null
-        const moduleAny = pdfParseModule as any
-        
-        // Méthode 1: default export (si présent)
-        if (moduleAny.default && typeof moduleAny.default === 'function') {
-          pdfParseFn = moduleAny.default
-        }
-        // Méthode 2: export nommé pdfParse
-        else if (typeof moduleAny.pdfParse === 'function') {
-          pdfParseFn = moduleAny.pdfParse
-        }
-        // Méthode 3: le module lui-même est la fonction
-        else if (typeof pdfParseModule === 'function') {
-          pdfParseFn = pdfParseModule
-        }
-        // Méthode 4: accès direct via propriétés (chercher la première fonction)
-        else {
-          for (const key in moduleAny) {
-            if (key !== 'default' && typeof moduleAny[key] === 'function') {
-              pdfParseFn = moduleAny[key]
-              break
-            }
-          }
-        }
+        // Obtenir la fonction pdf-parse (peut être default ou directement la fonction)
+        const pdfParseFn = (pdfParse as any).default || pdfParse
         
         // Vérifier que c'est bien une fonction
-        if (!pdfParseFn || typeof pdfParseFn !== 'function') {
-          console.error('Structure du module pdf-parse:', Object.keys(pdfParseModule))
-          throw new Error('pdf-parse n\'a pas pu être chargé correctement. Structure du module: ' + JSON.stringify(Object.keys(pdfParseModule)))
+        if (typeof pdfParseFn !== 'function') {
+          throw new Error('pdf-parse n\'a pas pu être chargé correctement')
         }
         
         // Appeler pdf-parse avec le buffer
