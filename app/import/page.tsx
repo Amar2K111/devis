@@ -218,7 +218,7 @@ export default function ImportPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <PageHeader
-        title="Import Excel / PDF"
+        title="Import Devis / PDF"
         description="Importez vos devis depuis un fichier Excel (.xlsx, .xls, .csv) ou PDF"
         showBackButton
         backHref="/devis"

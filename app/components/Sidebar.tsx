@@ -26,7 +26,7 @@ interface NavItem {
 const navigation: NavItem[] = [
   { name: 'Tableau de bord', href: '/', icon: LayoutDashboard },
   { name: 'Devis', href: '/devis', icon: FileText },
-  { name: 'Import Excel', href: '/import', icon: Upload },
+  { name: 'Import Devis', href: '/import', icon: Upload },
   { name: 'Clients', href: '/clients', icon: Users },
   { name: 'Paramètres', href: '/parametres', icon: Settings },
 ]
