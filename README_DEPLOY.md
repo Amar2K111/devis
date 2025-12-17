@@ -23,8 +23,12 @@ git push
 **Option A : Supabase (recommandé)**
 1. Allez sur [supabase.com](https://supabase.com)
 2. Créez un compte et un nouveau projet
-3. Dans **Settings > Database**, copiez l'URL de connexion (Connection string)
-4. Format : `postgresql://postgres:[PASSWORD]@[HOST]:5432/postgres`
+3. Dans **Settings > Database**, copiez l'URL de connexion
+4. **IMPORTANT pour Vercel** : Utilisez **Connection pooling** (pas la connexion directe)
+   - Sélectionnez **Connection pooling** (Mode: Transaction)
+   - Port : **6543** (pas 5432)
+   - Format : `postgresql://postgres.[PROJECT_REF]:[PASSWORD]@[POOLER_HOST]:6543/postgres?pgbouncer=true`
+   - Exemple : `postgresql://postgres.xxx:password@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true`
 
 **Option B : Neon**
 1. Allez sur [neon.tech](https://neon.tech)
@@ -120,8 +124,13 @@ Le fichier `vercel.json` contient déjà la bonne configuration :
 
 **Solution** : 
 - Vérifiez que `DATABASE_URL` est correctement configurée dans Vercel
+- **Pour Supabase** : Utilisez **Connection pooling** (port 6543) au lieu de la connexion directe (port 5432)
+  - Allez dans Supabase > Settings > Database > Connection string
+  - Sélectionnez **Connection pooling** (Mode: Transaction)
+  - Copiez l'URL avec le port **6543** et ajoutez `?pgbouncer=true`
+  - Voir le fichier `FIX_VERCEL_DATABASE.md` pour plus de détails
 - Vérifiez que votre base de données accepte les connexions externes
-- Pour Supabase : Vérifiez que "Connection pooling" est activé si nécessaire
+- Redéployez l'application après avoir mis à jour la variable d'environnement
 
 ### ❌ Erreur "Migration not found"
 
