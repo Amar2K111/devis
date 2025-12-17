@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Configuration pour Prisma et pdfjs-dist sur Vercel
-  serverExternalPackages: ['@prisma/client', 'pdfjs-dist', 'puppeteer'],
+  // Configuration pour Prisma et les packages serveur sur Vercel
+  serverExternalPackages: ['@prisma/client', 'pdf-parse', 'puppeteer'],
   // Optimisations pour le build
   output: 'standalone',
   // Configuration pour éviter les erreurs DOM dans les packages serveur

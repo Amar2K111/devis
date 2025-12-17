@@ -51,38 +51,18 @@ export async function POST(request: NextRequest) {
 
     // Traiter selon le type de fichier
     if (fileExtension === '.pdf') {
-      // Parser le PDF avec pdfjs-dist (Mozilla PDF.js) - solution fiable et compatible
+      // Convertir le PDF en Excel puis traiter comme un fichier Excel
       try {
-        // Utiliser le build standard de pdfjs-dist
-        const pdfjsModule = await import('pdfjs-dist')
-        const pdfjs = pdfjsModule.default || pdfjsModule
+        // Importer pdf-parse (fonctionne bien sur Vercel/serverless)
+        const pdfParse = (await import('pdf-parse')).default
         
-        // Ne pas configurer le worker - laisser pdfjs-dist utiliser son mode par défaut
-        // Le worker sera automatiquement désactivé en environnement Node.js
+        // Parser le PDF directement depuis le buffer
+        const pdfData = await pdfParse(Buffer.from(buffer))
         
-        // Charger le document PDF
-        const loadingTask = pdfjs.getDocument({
-          data: new Uint8Array(buffer),
-          useSystemFonts: true,
-          verbosity: 0, // Réduire les logs
-          // Ne pas spécifier de worker - pdfjs-dist gérera automatiquement
-        })
+        // Extraire le texte complet du PDF
+        const fullText = pdfData.text
         
-        const pdfDocument = await loadingTask.promise
-        
-        // Extraire le texte de toutes les pages
-        let fullText = ''
-        for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
-          const page = await pdfDocument.getPage(pageNum)
-          const textContent = await page.getTextContent()
-          const pageText = textContent.items
-            .map((item: any) => item.str)
-            .join(' ')
-          fullText += pageText + '\n'
-        }
-        
-        // Parser le texte extrait
-        // Logger les premières lignes pour debug (limité à 500 caractères)
+        // Parser le texte extrait pour obtenir les données structurées
         console.log('Texte extrait du PDF (premiers 500 caractères):', fullText.substring(0, 500))
         
         const parsedData = parsePDFDevis(fullText)
@@ -94,9 +74,36 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           )
         }
-        data = [parsedData]
+
+        // Convertir les données du PDF en format Excel
+        const excelData = convertPDFToExcelFormat(parsedData)
+        
+        // Créer un workbook Excel en mémoire
+        const workbook = XLSX.utils.book_new()
+        const worksheet = XLSX.utils.json_to_sheet(excelData)
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Devis')
+        
+        // Convertir le workbook en buffer puis le lire comme un fichier Excel
+        const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+        
+        // Lire le fichier Excel créé
+        const excelWorkbook = XLSX.read(excelBuffer, { type: 'buffer' })
+        const sheetName = excelWorkbook.SheetNames[0]
+        const excelWorksheet = excelWorkbook.Sheets[sheetName]
+        
+        // Convertir en JSON pour traitement
+        data = XLSX.utils.sheet_to_json(excelWorksheet)
+
+        if (!Array.isArray(data) || data.length === 0) {
+          return NextResponse.json(
+            { error: 'Impossible de convertir le PDF en Excel. Les données extraites sont vides.' },
+            { status: 400 }
+          )
+        }
+
+        console.log(`✅ PDF converti en Excel avec ${data.length} ligne(s)`)
       } catch (pdfError: any) {
-        console.error('Erreur lors du parsing PDF:', pdfError)
+        console.error('Erreur lors de la conversion PDF vers Excel:', pdfError)
         return NextResponse.json(
           { error: `Erreur lors de l'import du PDF: ${pdfError.message || 'Erreur inconnue'}` },
           { status: 500 }
@@ -280,6 +287,53 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+/**
+ * Convertit les données parsées d'un PDF en format Excel
+ */
+function convertPDFToExcelFormat(parsedData: any): any[] {
+  // Créer une ligne Excel avec toutes les colonnes nécessaires
+  const excelRow: any = {
+    client: parsedData.client || '',
+    typeTravaux: parsedData.typeTravaux || 'Construction',
+    dateDevis: parsedData.dateDevis || new Date().toISOString().split('T')[0],
+    montant: parsedData.montant || 0,
+    statut: parsedData.statut || 'brouillon',
+    clientAdresse: parsedData.entrepriseAdresse || '',
+    clientTelephone: '',
+    clientEmail: '',
+    clientSiret: '',
+    dateValidite: '',
+    dateDebutTravaux: '',
+    tauxTVA: parsedData.tauxTVA || 20,
+    materiaux: '',
+    notes: [
+      parsedData.entrepriseNom ? `Entreprise: ${parsedData.entrepriseNom}` : '',
+      parsedData.referenceAffaire ? `Réf. affaire: ${parsedData.referenceAffaire}` : '',
+      parsedData.affaireSuiviePar ? `Suivi par: ${parsedData.affaireSuiviePar}` : '',
+      parsedData.lieuDevis ? `Lieu: ${parsedData.lieuDevis}` : '',
+    ].filter(Boolean).join('\n'),
+  }
+
+  // Si on a des lignes de devis, on peut les ajouter dans les notes ou créer des lignes séparées
+  if (parsedData.lignes && Array.isArray(parsedData.lignes) && parsedData.lignes.length > 0) {
+    const lignesText = parsedData.lignes
+      .map((ligne: any, index: number) => {
+        if (ligne.isSection) {
+          return `${ligne.numeroLigne || index + 1}. ${ligne.description} (Section)`
+        } else {
+          return `${ligne.numeroLigne || index + 1}. ${ligne.description} - ${ligne.quantite || 0} ${ligne.unite || 'unité'} x ${ligne.prixUnitaire || 0}€ = ${ligne.montantHT || 0}€ HT`
+        }
+      })
+      .join('\n')
+    
+    excelRow.notes = excelRow.notes 
+      ? `${excelRow.notes}\n\nLignes du devis:\n${lignesText}`
+      : `Lignes du devis:\n${lignesText}`
+  }
+
+  return [excelRow]
 }
 
 /**
