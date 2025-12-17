@@ -2,9 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   // Configuration pour Prisma et pdf-parse sur Vercel
-  experimental: {
-    serverComponentsExternalPackages: ['@prisma/client', 'pdf-parse'],
-  },
+  serverExternalPackages: ['@prisma/client', 'pdf-parse'],
   // Optimisations pour le build
   output: 'standalone',
 }
