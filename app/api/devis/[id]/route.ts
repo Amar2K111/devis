@@ -11,10 +11,10 @@ import { calculateMontants } from '@/lib/devis'
 // GET - Récupère un devis par ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     const devis = await prisma.devis.findUnique({
       where: { id },
@@ -48,10 +48,10 @@ export async function GET(
 // PUT - Met à jour un devis
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     // Vérifier que le devis existe
