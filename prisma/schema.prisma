@@ -30,6 +30,8 @@ model Devis {
   statut          String       @default("brouillon") // Statut : brouillon, envoyé, accepté, refusé, en cours, terminé, annulé
   materiaux       String?      // Matériaux utilisés (optionnel)
   notes           String?      // Notes additionnelles (optionnel)
+  pdfOriginal     Bytes?       // PDF original si importé depuis un PDF (optionnel)
+  nomFichierPDF   String?      // Nom du fichier PDF original (optionnel)
   createdAt       DateTime     @default(now()) // Date de création automatique
   updatedAt       DateTime     @updatedAt // Date de mise à jour automatique
   

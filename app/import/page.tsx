@@ -63,12 +63,12 @@ export default function ImportPage() {
     setPreview(null)
 
       try {
-        // Si c'est un PDF, on ne peut pas le prévisualiser côté client
+        // Si c'est un PDF, on ne peut pas le prévisualiser côté client mais on peut l'importer
         if (selectedFile.name.toLowerCase().endsWith('.pdf')) {
           setFile(selectedFile)
           setMessage({
             type: 'success',
-            text: `Fichier PDF sélectionné: ${selectedFile.name}. Vous pouvez maintenant l'importer.`
+            text: `Fichier PDF sélectionné: ${selectedFile.name}. Le PDF sera converti en Excel lors de l'import.`
           })
           setPreview(null)
           return
@@ -219,7 +219,7 @@ export default function ImportPage() {
     <div className="min-h-screen bg-gray-50">
       <PageHeader
         title="Import Devis / PDF"
-        description="Importez vos devis depuis un fichier Excel (.xlsx, .xls, .csv) ou PDF"
+        description="Importez vos devis depuis un fichier Excel (.xlsx, .xls, .csv) ou PDF (converti automatiquement en Excel)"
         showBackButton
         backHref="/devis"
       />
@@ -264,7 +264,7 @@ export default function ImportPage() {
                       Glissez-déposez votre fichier ici
                     </p>
                     <p className="text-xs text-gray-500">ou cliquez pour sélectionner</p>
-                    <p className="mt-2 text-xs text-gray-400">Formats acceptés: .xlsx, .xls, .csv, .pdf</p>
+                    <p className="mt-2 text-xs text-gray-400">Formats acceptés: .xlsx, .xls, .csv, .pdf (PDF converti en Excel automatiquement)</p>
                   </>
                 )}
               </div>

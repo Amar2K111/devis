@@ -40,6 +40,7 @@ interface Devis {
   statut: string
   materiaux: string | null
   notes: string | null
+  nomFichierPDF: string | null
   createdAt: string
   updatedAt: string
   lignes: LigneDevis[]
@@ -54,6 +55,7 @@ export default function DevisDetailPage() {
   const [loading, setLoading] = useState(true)
   const [exportingPDF, setExportingPDF] = useState(false)
   const [exportingExcel, setExportingExcel] = useState(false)
+  const [downloadingOriginalPDF, setDownloadingOriginalPDF] = useState(false)
 
   useEffect(() => {
     loadDevis()
@@ -115,6 +117,36 @@ export default function DevisDetailPage() {
       alert(`Erreur: ${error.message}`)
     } finally {
       setExportingPDF(false)
+    }
+  }
+
+  const handleDownloadOriginalPDF = async () => {
+    if (!devis?.nomFichierPDF) {
+      alert('Aucun PDF original disponible pour ce devis')
+      return
+    }
+
+    setDownloadingOriginalPDF(true)
+    try {
+      const response = await fetch(`/api/devis/${id}/pdf`)
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = devis.nomFichierPDF || `devis-original-${devis.numeroDevis}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Erreur lors du téléchargement du PDF original')
+      }
+    } catch (error: any) {
+      alert(`Erreur: ${error.message}`)
+    } finally {
+      setDownloadingOriginalPDF(false)
     }
   }
 
@@ -181,6 +213,16 @@ export default function DevisDetailPage() {
           >
             Modifier
           </button>
+          {devis.nomFichierPDF && (
+            <button
+              onClick={handleDownloadOriginalPDF}
+              disabled={downloadingOriginalPDF}
+              className="rounded-md bg-blue-100 px-4 py-2 text-sm text-blue-700 hover:bg-blue-200 disabled:opacity-50"
+              title="Télécharger le PDF original importé"
+            >
+              {downloadingOriginalPDF ? 'Téléchargement...' : 'PDF Original'}
+            </button>
+          )}
           <button
             onClick={handleExportPDF}
             disabled={exportingPDF}

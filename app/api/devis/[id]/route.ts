@@ -18,7 +18,28 @@ export async function GET(
 
     const devis = await prisma.devis.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        numeroDevis: true,
+        client: true,
+        clientAdresse: true,
+        clientTelephone: true,
+        clientEmail: true,
+        clientSiret: true,
+        typeTravaux: true,
+        dateDevis: true,
+        dateValidite: true,
+        dateDebutTravaux: true,
+        montantHT: true,
+        tauxTVA: true,
+        montantTVA: true,
+        montantTTC: true,
+        statut: true,
+        materiaux: true,
+        notes: true,
+        nomFichierPDF: true, // Inclure le nom du fichier PDF mais pas le PDF lui-même
+        createdAt: true,
+        updatedAt: true,
         lignes: {
           orderBy: { ordre: 'asc' },
         },

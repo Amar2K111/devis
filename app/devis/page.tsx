@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Download, MoreVertical, Eye, Edit, FileText, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Download, MoreVertical, Eye, Edit, FileText, Trash2, ChevronUp, ChevronDown, Filter, X, Calendar, DollarSign } from 'lucide-react'
 import PageHeader from '@/app/components/PageHeader'
 import StatutBadge from '@/app/components/StatutBadge'
 
@@ -78,7 +78,9 @@ export default function DevisPage() {
     typeTravaux: [],
     statuts: [],
   })
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(true)
+  const [dateFilter, setDateFilter] = useState({ start: '', end: '' })
+  const [montantFilter, setMontantFilter] = useState({ min: '', max: '' })
   const [sortBy, setSortBy] = useState<SortField>('dateDevis')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [page, setPage] = useState(1)
@@ -125,6 +127,10 @@ export default function DevisPage() {
       if (filters.client && !searchDebounced) params.append('client', filters.client)
       if (filters.typeTravaux && !searchDebounced) params.append('typeTravaux', filters.typeTravaux)
       if (filters.statut) params.append('statut', filters.statut)
+      if (dateFilter.start) params.append('dateDebut', dateFilter.start)
+      if (dateFilter.end) params.append('dateFin', dateFilter.end)
+      if (montantFilter.min) params.append('montantMin', montantFilter.min)
+      if (montantFilter.max) params.append('montantMax', montantFilter.max)
       const sortByMapped = (sortBy as string) === 'montant' ? 'montantTTC' : sortBy
       params.append('sortBy', sortByMapped)
       params.append('sortOrder', sortOrder)
@@ -148,7 +154,7 @@ export default function DevisPage() {
     } finally {
       setLoading(false)
     }
-  }, [searchDebounced, filters, sortBy, sortOrder, page, pagination.pageSize])
+  }, [searchDebounced, filters, dateFilter, montantFilter, sortBy, sortOrder, page, pagination.pageSize])
 
   useEffect(() => {
     loadDevis()
@@ -181,8 +187,12 @@ export default function DevisPage() {
   const resetFilters = () => {
     setSearch('')
     setFilters({ client: '', typeTravaux: '', statut: '' })
+    setDateFilter({ start: '', end: '' })
+    setMontantFilter({ min: '', max: '' })
     setPage(1)
   }
+
+  const hasActiveFilters = searchDebounced || filters.client || filters.typeTravaux || filters.statut || dateFilter.start || dateFilter.end || montantFilter.min || montantFilter.max
 
   const handleExportExcel = async () => {
     setExportingExcel(true)
@@ -227,8 +237,6 @@ export default function DevisPage() {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(montant)
   }
 
-  const hasActiveFilters = searchDebounced || filters.client || filters.typeTravaux || filters.statut
-
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortBy !== field) return null
     return sortOrder === 'asc' ? (
@@ -242,10 +250,14 @@ export default function DevisPage() {
     <div className="min-h-screen bg-gray-50">
       <PageHeader
         title="Devis"
-        description={`${pagination.total} devis au total`}
+        description={
+          hasActiveFilters 
+            ? `${pagination.total} devis trouvé${pagination.total > 1 ? 's' : ''} avec les filtres appliqués`
+            : `${pagination.total} devis au total`
+        }
         searchValue={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Rechercher un devis, client, type de travaux..."
+        searchPlaceholder="Rechercher par numéro, client, type de travaux, notes..."
         actions={
           <>
             <button
@@ -267,62 +279,212 @@ export default function DevisPage() {
         }
       />
 
-      {/* Filtres */}
-      {showFilters && (
-        <div className="border-b border-gray-200 bg-white px-8 py-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">Client</label>
-              <select
-                value={filters.client}
-                onChange={(e) => setFilters({ ...filters, client: e.target.value })}
-                disabled={!!searchDebounced}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm disabled:bg-gray-100 disabled:opacity-60"
+      {/* Barre de filtres améliorée */}
+      <div className="border-b border-gray-200 bg-white">
+        <div className="px-8 py-4">
+          {/* Filtres rapides (statuts courants) */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-gray-500">Filtres rapides:</span>
+            {['brouillon', 'envoyé', 'accepté', 'en cours', 'terminé'].map((statut) => (
+              <button
+                key={statut}
+                onClick={() => {
+                  setFilters({ ...filters, statut: filters.statut === statut ? '' : statut })
+                  setPage(1)
+                }}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  filters.statut === statut
+                    ? 'bg-black text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
-                <option value="">Tous</option>
-                {filterOptions.clients.map((client) => (
-                  <option key={client} value={client}>{client}</option>
-                ))}
-              </select>
+                {statut.charAt(0).toUpperCase() + statut.slice(1)}
+              </button>
+            ))}
+            {filters.statut && (
+              <button
+                onClick={() => {
+                  setFilters({ ...filters, statut: '' })
+                  setPage(1)
+                }}
+                className="rounded-full px-2 py-1 text-xs text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {/* En-tête des filtres */}
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <h2 className="text-sm font-medium text-gray-900">Filtres de recherche</h2>
+              {hasActiveFilters && (
+                <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                  {[
+                    searchDebounced && 'Recherche',
+                    filters.client && 'Client',
+                    filters.typeTravaux && 'Type',
+                    filters.statut && 'Statut',
+                    (dateFilter.start || dateFilter.end) && 'Date',
+                    (montantFilter.min || montantFilter.max) && 'Montant',
+                  ].filter(Boolean).length} actif(s)
+                </span>
+              )}
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">Type de travaux</label>
-              <select
-                value={filters.typeTravaux}
-                onChange={(e) => setFilters({ ...filters, typeTravaux: e.target.value })}
-                disabled={!!searchDebounced}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm disabled:bg-gray-100 disabled:opacity-60"
+            <div className="flex items-center gap-2">
+              {hasActiveFilters && (
+                <button
+                  onClick={resetFilters}
+                  className="flex items-center gap-1 rounded-md px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+                >
+                  <X className="h-3 w-3" />
+                  Réinitialiser
+                </button>
+              )}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="rounded-md px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
               >
-                <option value="">Tous</option>
-                {filterOptions.typeTravaux.map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-700">Statut</label>
-              <select
-                value={filters.statut}
-                onChange={(e) => setFilters({ ...filters, statut: e.target.value })}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="">Tous</option>
-                {filterOptions.statuts.map((statut) => (
-                  <option key={statut} value={statut}>{statut}</option>
-                ))}
-              </select>
+                {showFilters ? 'Masquer' : 'Afficher'} les filtres
+              </button>
             </div>
           </div>
-          {hasActiveFilters && (
-            <button
-              onClick={resetFilters}
-              className="mt-4 text-sm text-gray-600 hover:text-gray-900"
-            >
-              Réinitialiser les filtres
-            </button>
+
+          {/* Filtres détaillés */}
+          {showFilters && (
+            <div className="space-y-4">
+              {/* Première ligne : Client, Type, Statut */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-gray-700">Client</label>
+                  <select
+                    value={filters.client}
+                    onChange={(e) => {
+                      setFilters({ ...filters, client: e.target.value })
+                      setPage(1)
+                    }}
+                    disabled={!!searchDebounced}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black disabled:bg-gray-100 disabled:opacity-60"
+                  >
+                    <option value="">Tous les clients</option>
+                    {filterOptions.clients.map((client) => (
+                      <option key={client} value={client}>{client}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-gray-700">Type de travaux</label>
+                  <select
+                    value={filters.typeTravaux}
+                    onChange={(e) => {
+                      setFilters({ ...filters, typeTravaux: e.target.value })
+                      setPage(1)
+                    }}
+                    disabled={!!searchDebounced}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black disabled:bg-gray-100 disabled:opacity-60"
+                  >
+                    <option value="">Tous les types</option>
+                    {filterOptions.typeTravaux.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-gray-700">Statut</label>
+                  <select
+                    value={filters.statut}
+                    onChange={(e) => {
+                      setFilters({ ...filters, statut: e.target.value })
+                      setPage(1)
+                    }}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
+                  >
+                    <option value="">Tous les statuts</option>
+                    {filterOptions.statuts.map((statut) => (
+                      <option key={statut} value={statut}>{statut}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Deuxième ligne : Dates */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-gray-700">
+                    <Calendar className="h-3 w-3" />
+                    Date de début
+                  </label>
+                  <input
+                    type="date"
+                    value={dateFilter.start}
+                    onChange={(e) => {
+                      setDateFilter({ ...dateFilter, start: e.target.value })
+                      setPage(1)
+                    }}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-gray-700">
+                    <Calendar className="h-3 w-3" />
+                    Date de fin
+                  </label>
+                  <input
+                    type="date"
+                    value={dateFilter.end}
+                    onChange={(e) => {
+                      setDateFilter({ ...dateFilter, end: e.target.value })
+                      setPage(1)
+                    }}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
+                  />
+                </div>
+              </div>
+
+              {/* Troisième ligne : Montants */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-gray-700">
+                    <DollarSign className="h-3 w-3" />
+                    Montant minimum (€)
+                  </label>
+                  <input
+                    type="number"
+                    value={montantFilter.min}
+                    onChange={(e) => {
+                      setMontantFilter({ ...montantFilter, min: e.target.value })
+                      setPage(1)
+                    }}
+                    placeholder="0"
+                    min="0"
+                    step="0.01"
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-xs font-medium text-gray-700">
+                    <DollarSign className="h-3 w-3" />
+                    Montant maximum (€)
+                  </label>
+                  <input
+                    type="number"
+                    value={montantFilter.max}
+                    onChange={(e) => {
+                      setMontantFilter({ ...montantFilter, max: e.target.value })
+                      setPage(1)
+                    }}
+                    placeholder="Aucune limite"
+                    min="0"
+                    step="0.01"
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
+                  />
+                </div>
+              </div>
+            </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Tableau style Airtable */}
       <div className="px-8 py-6">

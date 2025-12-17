@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "devis" ADD COLUMN IF NOT EXISTS "pdfOriginal" BYTEA,
+ADD COLUMN IF NOT EXISTS "nomFichierPDF" TEXT;
+

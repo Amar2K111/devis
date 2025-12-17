@@ -47,28 +47,80 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = await file.arrayBuffer()
+    const fileBuffer = Buffer.from(buffer)
     let data: any[] = []
+    let pdfBuffer: Buffer | null = null
+    let pdfFileName: string | null = null
+    
+    // Si c'est un PDF, sauvegarder le buffer pour le stocker dans la base de données
+    if (fileExtension === '.pdf') {
+      pdfBuffer = fileBuffer
+      pdfFileName = file.name
+    }
 
     // Traiter selon le type de fichier
     if (fileExtension === '.pdf') {
       // Convertir le PDF en Excel puis traiter comme un fichier Excel
       try {
-        // Importer pdf-parse (fonctionne bien sur Vercel/serverless)
-        const pdfParse = (await import('pdf-parse')).default
+        // Importer pdf2json (bibliothèque simple et fiable)
+        const PDFParser = require('pdf2json')
         
-        // Parser le PDF directement depuis le buffer
-        const pdfData = await pdfParse(Buffer.from(buffer))
+        // Parser le PDF
+        const pdfParser = new PDFParser(null, 1)
         
-        // Extraire le texte complet du PDF
-        const fullText = pdfData.text
+        // Extraire le texte du PDF
+        const pdfText = await new Promise<string>((resolve, reject) => {
+          let fullText = ''
+          
+          pdfParser.on('pdfParser_dataError', (errData: any) => {
+            reject(new Error(`Erreur lors du parsing PDF: ${errData.parserError}`))
+          })
+          
+          pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
+            // Extraire le texte de toutes les pages
+            if (pdfData.Pages) {
+              pdfData.Pages.forEach((page: any, pageIndex: number) => {
+                if (page.Texts) {
+                  // Trier les textes par position Y puis X pour un ordre de lecture correct
+                  const sortedTexts = [...page.Texts].sort((a: any, b: any) => {
+                    const yDiff = (b.y || 0) - (a.y || 0) // Y décroissant (haut vers bas)
+                    if (Math.abs(yDiff) > 5) return yDiff
+                    return (a.x || 0) - (b.x || 0) // X croissant (gauche vers droite)
+                  })
+                  
+                  sortedTexts.forEach((text: any) => {
+                    if (text.R) {
+                      text.R.forEach((run: any) => {
+                        // Décoder le texte (peut être encodé en URI)
+                        try {
+                          fullText += decodeURIComponent(run.T)
+                        } catch (e) {
+                          fullText += run.T
+                        }
+                      })
+                    }
+                  })
+                }
+                // Ajouter un saut de ligne entre les pages
+                if (pageIndex < pdfData.Pages.length - 1) {
+                  fullText += '\n'
+                }
+              })
+            }
+            resolve(fullText.trim())
+          })
+          
+          // Parser le buffer
+          pdfParser.parseBuffer(Buffer.from(buffer))
+        })
         
         // Parser le texte extrait pour obtenir les données structurées
-        console.log('Texte extrait du PDF (premiers 500 caractères):', fullText.substring(0, 500))
+        console.log('Texte extrait du PDF (premiers 500 caractères):', pdfText.substring(0, 500))
         
-        const parsedData = parsePDFDevis(fullText)
+        const parsedData = parsePDFDevis(pdfText)
         if (!parsedData) {
           // Logger plus d'informations pour debug
-          console.log('Échec du parsing. Texte complet (premiers 1000 caractères):', fullText.substring(0, 1000))
+          console.log('Échec du parsing. Texte complet (premiers 1000 caractères):', pdfText.substring(0, 1000))
           return NextResponse.json(
             { error: 'Impossible de parser le PDF. Vérifiez que c\'est un devis au format attendu. Le format du PDF pourrait être différent de celui attendu.' },
             { status: 400 }
@@ -222,6 +274,9 @@ export async function POST(request: NextRequest) {
           statut: statutFinal,
           materiaux: rowNormalized['materiaux']?.toString().trim() || null,
           notes: rowNormalized['notes']?.toString().trim() || null,
+          // Sauvegarder le PDF original si présent (seulement pour le premier devis importé depuis PDF)
+          pdfOriginal: i === 0 && pdfBuffer ? pdfBuffer : undefined,
+          nomFichierPDF: i === 0 && pdfFileName ? pdfFileName : undefined,
         }
 
         // Ajouter les informations entreprise dans les notes si présentes (depuis PDF)
