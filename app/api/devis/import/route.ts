@@ -53,20 +53,27 @@ export async function POST(request: NextRequest) {
     if (fileExtension === '.pdf') {
       // Parser le PDF avec gestion d'erreur améliorée
       try {
-        // Utiliser require pour éviter les problèmes de transpilation ES6
-        // pdf-parse fonctionne mieux avec require() dans un environnement Node.js
-        const pdfParse = require('pdf-parse')
+        // Utiliser un import dynamique standard pour éviter les problèmes de transpilation
+        // pdf-parse a des problèmes avec la transpilation ES6, donc on utilise import() directement
+        const pdfParseModule = await import('pdf-parse')
         
-        // Obtenir la fonction pdf-parse (peut être default ou directement la fonction)
-        const pdfParseFn = (pdfParse as any).default || pdfParse
+        // Obtenir la fonction pdf-parse (généralement dans default)
+        const pdfParseFn = (pdfParseModule as any).default || pdfParseModule
         
         // Vérifier que c'est bien une fonction
         if (typeof pdfParseFn !== 'function') {
+          console.error('Structure du module pdf-parse:', {
+            keys: Object.keys(pdfParseModule),
+            type: typeof pdfParseModule,
+            hasDefault: !!(pdfParseModule as any).default,
+            defaultType: typeof (pdfParseModule as any).default
+          })
           throw new Error('pdf-parse n\'a pas pu être chargé correctement')
         }
         
         // Appeler pdf-parse avec le buffer
-        const pdfData = await pdfParseFn(Buffer.from(buffer))
+        // Utiliser Promise.resolve pour s'assurer que c'est bien une promesse
+        const pdfData = await Promise.resolve(pdfParseFn(Buffer.from(buffer)))
         const parsedData = parsePDFDevis(pdfData.text)
         if (!parsedData) {
           return NextResponse.json(
