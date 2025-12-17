@@ -51,27 +51,39 @@ export async function POST(request: NextRequest) {
 
     // Traiter selon le type de fichier
     if (fileExtension === '.pdf') {
-      // IMPORTANT: pdf-parse a des problèmes de compatibilité avec Vercel/Next.js
-      // L'import PDF est temporairement désactivé jusqu'à ce qu'une solution soit trouvée
-      // Vous pouvez toujours importer vos devis via Excel (.xlsx, .xls, .csv)
-      return NextResponse.json(
-        { 
-          error: 'L\'import PDF est temporairement indisponible en raison de problèmes techniques avec la bibliothèque pdf-parse sur Vercel. Veuillez utiliser un fichier Excel (.xlsx, .xls, .csv) pour importer vos devis. Nous travaillons sur une solution alternative.' 
-        },
-        { status: 503 }
-      )
-      
-      /* Code désactivé temporairement - problèmes de transpilation ES6 avec pdf-parse
+      // Parser le PDF avec pdfjs-dist (Mozilla PDF.js) - solution fiable et compatible
       try {
-        const pdfParseModule = await import('pdf-parse')
-        const pdfParseFn = (pdfParseModule as any).default || pdfParseModule
+        // Importer pdfjs-dist de manière dynamique
+        // Utiliser le chemin correct selon la version
+        const pdfjsModule = await import('pdfjs-dist')
+        const pdfjs = pdfjsModule.default || pdfjsModule
         
-        if (typeof pdfParseFn !== 'function') {
-          throw new Error('pdf-parse n\'a pas pu être chargé correctement')
+        // Configurer le worker (optionnel mais recommandé)
+        if (pdfjs.GlobalWorkerOptions) {
+          pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
         }
         
-        const pdfData = await Promise.resolve(pdfParseFn(Buffer.from(buffer)))
-        const parsedData = parsePDFDevis(pdfData.text)
+        // Charger le document PDF
+        const loadingTask = pdfjs.getDocument({
+          data: new Uint8Array(buffer),
+          useSystemFonts: true,
+        })
+        
+        const pdfDocument = await loadingTask.promise
+        
+        // Extraire le texte de toutes les pages
+        let fullText = ''
+        for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+          const page = await pdfDocument.getPage(pageNum)
+          const textContent = await page.getTextContent()
+          const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(' ')
+          fullText += pageText + '\n'
+        }
+        
+        // Parser le texte extrait
+        const parsedData = parsePDFDevis(fullText)
         if (!parsedData) {
           return NextResponse.json(
             { error: 'Impossible de parser le PDF. Vérifiez que c\'est un devis au format attendu.' },
@@ -86,7 +98,6 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         )
       }
-      */
     } else {
       // Lire le fichier Excel
       const workbook = XLSX.read(buffer, { type: 'buffer' })
