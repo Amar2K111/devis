@@ -482,8 +482,9 @@ function parsePDFDevis(text: string): any | null {
     }
     
     // Accepter même sans montant si on a au moins un client
+    // On accepte le devis même si le montant est 0, car il peut être rempli manuellement
     if (montantTTC === 0 && lignes.length === 0) {
-      console.log('Parsing échoué: pas de montant ni de lignes trouvés')
+      console.log('Avertissement: pas de montant ni de lignes trouvés, mais on accepte quand même avec un client')
       // Utiliser des valeurs par défaut minimales
       montantTTC = 0
       montantHT = 0
