@@ -59,25 +59,24 @@ export async function POST(request: NextRequest) {
         // pdf-parse peut être exporté de différentes manières selon la version
         // Essayer différentes méthodes d'accès
         let pdfParseFn: any = null
+        const moduleAny = pdfParseModule as any
         
-        // Méthode 1: default export
-        if (pdfParseModule.default && typeof pdfParseModule.default === 'function') {
-          pdfParseFn = pdfParseModule.default
+        // Méthode 1: default export (si présent)
+        if (moduleAny.default && typeof moduleAny.default === 'function') {
+          pdfParseFn = moduleAny.default
         }
-        // Méthode 2: export nommé
-        else if (typeof (pdfParseModule as any).pdfParse === 'function') {
-          pdfParseFn = (pdfParseModule as any).pdfParse
+        // Méthode 2: export nommé pdfParse
+        else if (typeof moduleAny.pdfParse === 'function') {
+          pdfParseFn = moduleAny.pdfParse
         }
         // Méthode 3: le module lui-même est la fonction
         else if (typeof pdfParseModule === 'function') {
           pdfParseFn = pdfParseModule
         }
-        // Méthode 4: accès direct via propriétés
+        // Méthode 4: accès direct via propriétés (chercher la première fonction)
         else {
-          const moduleAny = pdfParseModule as any
-          // Chercher une fonction dans le module
           for (const key in moduleAny) {
-            if (typeof moduleAny[key] === 'function') {
+            if (key !== 'default' && typeof moduleAny[key] === 'function') {
               pdfParseFn = moduleAny[key]
               break
             }
