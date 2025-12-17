@@ -51,28 +51,25 @@ export async function POST(request: NextRequest) {
 
     // Traiter selon le type de fichier
     if (fileExtension === '.pdf') {
-      // Parser le PDF avec gestion d'erreur améliorée
+      // IMPORTANT: pdf-parse a des problèmes de compatibilité avec Vercel/Next.js
+      // L'import PDF est temporairement désactivé jusqu'à ce qu'une solution soit trouvée
+      // Vous pouvez toujours importer vos devis via Excel (.xlsx, .xls, .csv)
+      return NextResponse.json(
+        { 
+          error: 'L\'import PDF est temporairement indisponible en raison de problèmes techniques avec la bibliothèque pdf-parse sur Vercel. Veuillez utiliser un fichier Excel (.xlsx, .xls, .csv) pour importer vos devis. Nous travaillons sur une solution alternative.' 
+        },
+        { status: 503 }
+      )
+      
+      /* Code désactivé temporairement - problèmes de transpilation ES6 avec pdf-parse
       try {
-        // Utiliser un import dynamique standard pour éviter les problèmes de transpilation
-        // pdf-parse a des problèmes avec la transpilation ES6, donc on utilise import() directement
         const pdfParseModule = await import('pdf-parse')
-        
-        // Obtenir la fonction pdf-parse (généralement dans default)
         const pdfParseFn = (pdfParseModule as any).default || pdfParseModule
         
-        // Vérifier que c'est bien une fonction
         if (typeof pdfParseFn !== 'function') {
-          console.error('Structure du module pdf-parse:', {
-            keys: Object.keys(pdfParseModule),
-            type: typeof pdfParseModule,
-            hasDefault: !!(pdfParseModule as any).default,
-            defaultType: typeof (pdfParseModule as any).default
-          })
           throw new Error('pdf-parse n\'a pas pu être chargé correctement')
         }
         
-        // Appeler pdf-parse avec le buffer
-        // Utiliser Promise.resolve pour s'assurer que c'est bien une promesse
         const pdfData = await Promise.resolve(pdfParseFn(Buffer.from(buffer)))
         const parsedData = parsePDFDevis(pdfData.text)
         if (!parsedData) {
@@ -89,6 +86,7 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         )
       }
+      */
     } else {
       // Lire le fichier Excel
       const workbook = XLSX.read(buffer, { type: 'buffer' })
