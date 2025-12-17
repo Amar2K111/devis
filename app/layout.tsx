@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import Header from './components/Header'
+import Sidebar from './components/Sidebar'
 
 export const metadata: Metadata = {
   title: 'Devis Manager - Gestion des Devis',
@@ -14,11 +14,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" translate="no" className="h-full">
-      <body className="h-full min-h-screen flex flex-col bg-white antialiased">
-        <Header />
-        <main className="flex-1 w-full">
+      <body className="h-full min-h-screen bg-gray-50 antialiased">
+        <div className="flex h-full">
+          <Sidebar />
+          <main 
+            id="main-content"
+            className="flex-1 transition-[margin-left] duration-300"
+            suppressHydrationWarning
+          >
           {children}
         </main>
+        </div>
       </body>
     </html>
   )

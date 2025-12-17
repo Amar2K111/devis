@@ -1,11 +1,13 @@
 /**
  * API Route pour gérer les devis
  * GET /api/devis - Liste tous les devis avec filtres optionnels, tri et pagination
+ * POST /api/devis - Crée un nouveau devis
  * DELETE /api/devis?id=xxx - Supprime un devis
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { generateNumeroDevis, calculateMontants } from '@/lib/devis'
 
 // GET - Liste tous les devis avec filtres performants
 export async function GET(request: NextRequest) {
@@ -37,6 +39,7 @@ export async function GET(request: NextRequest) {
     if (search) {
       whereConditions.push({
         OR: [
+          { numeroDevis: { contains: search, mode: 'insensitive' } },
           { client: { contains: search, mode: 'insensitive' } },
           { typeTravaux: { contains: search, mode: 'insensitive' } },
           { notes: { contains: search, mode: 'insensitive' } },
@@ -78,7 +81,7 @@ export async function GET(request: NextRequest) {
       whereConditions.push({ dateDevis: dateFilter })
     }
 
-    // Filtres par montant
+    // Filtres par montant (utilise montantTTC)
     if (montantMin || montantMax) {
       const montantFilter: any = {}
       if (montantMin) {
@@ -87,7 +90,7 @@ export async function GET(request: NextRequest) {
       if (montantMax) {
         montantFilter.lte = parseFloat(montantMax)
       }
-      whereConditions.push({ montant: montantFilter })
+      whereConditions.push({ montantTTC: montantFilter })
     }
 
     // Construire l'objet where final
@@ -97,19 +100,24 @@ export async function GET(request: NextRequest) {
 
     // Construire l'ordre de tri
     const orderBy: any = {}
-    const validSortFields = ['dateDevis', 'montant', 'client', 'typeTravaux', 'statut', 'createdAt']
+    const validSortFields = ['dateDevis', 'montantTTC', 'montantHT', 'client', 'typeTravaux', 'statut', 'createdAt', 'numeroDevis']
     const sortField = validSortFields.includes(sortBy) ? sortBy : 'dateDevis'
     orderBy[sortField] = sortOrder === 'asc' ? 'asc' : 'desc'
 
     // Compter le total avant pagination
     const total = await prisma.devis.count({ where })
 
-    // Récupérer les devis avec pagination
+    // Récupérer les devis avec pagination et lignes
     const devis = await prisma.devis.findMany({
       where,
       orderBy,
       skip,
       take: pageSize,
+      include: {
+        lignes: {
+          orderBy: { ordre: 'asc' },
+        },
+      },
     })
 
     return NextResponse.json({
@@ -125,6 +133,113 @@ export async function GET(request: NextRequest) {
     console.error('Erreur lors de la récupération des devis:', error)
     return NextResponse.json(
       { error: `Erreur lors de la récupération: ${error.message}` },
+      { status: 500 }
+    )
+  }
+}
+
+// POST - Crée un nouveau devis
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    
+    // Validation des champs obligatoires
+    if (!body.client || !body.typeTravaux || !body.dateDevis) {
+      return NextResponse.json(
+        { error: 'Champs obligatoires manquants: client, typeTravaux, dateDevis' },
+        { status: 400 }
+      )
+    }
+
+    // Générer le numéro de devis
+    const numeroDevis = await generateNumeroDevis()
+
+    // Calculer les montants à partir des lignes si fournies
+    let montantHT = 0
+    let montantTVA = 0
+    let montantTTC = 0
+    let tauxTVA = body.tauxTVA || 20.0
+
+    if (body.lignes && Array.isArray(body.lignes) && body.lignes.length > 0) {
+      const montants = calculateMontants(body.lignes)
+      montantHT = montants.montantHT
+      montantTVA = montants.montantTVA
+      montantTTC = montants.montantTTC
+      // Utiliser le taux de TVA moyen si plusieurs lignes avec différents taux
+      tauxTVA = body.tauxTVA || 20.0
+    } else if (body.montantHT !== undefined) {
+      // Si montantHT fourni directement (pour compatibilité)
+      montantHT = parseFloat(body.montantHT)
+      tauxTVA = body.tauxTVA || 20.0
+      montantTVA = montantHT * (tauxTVA / 100)
+      montantTTC = montantHT + montantTVA
+    }
+
+    // Validation du statut
+    const statutsValides = ['brouillon', 'envoyé', 'accepté', 'refusé', 'en cours', 'terminé', 'annulé']
+    const statut = body.statut || 'brouillon'
+    if (!statutsValides.includes(statut.toLowerCase())) {
+      return NextResponse.json(
+        { error: `Statut invalide. Doit être l'un de: ${statutsValides.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
+    // Créer le devis avec les lignes
+    const devis = await prisma.devis.create({
+      data: {
+        numeroDevis,
+        client: body.client,
+        clientAdresse: body.clientAdresse || null,
+        clientTelephone: body.clientTelephone || null,
+        clientEmail: body.clientEmail || null,
+        clientSiret: body.clientSiret || null,
+        typeTravaux: body.typeTravaux,
+        dateDevis: new Date(body.dateDevis),
+        dateValidite: body.dateValidite ? new Date(body.dateValidite) : null,
+        dateDebutTravaux: body.dateDebutTravaux ? new Date(body.dateDebutTravaux) : null,
+        montantHT,
+        tauxTVA,
+        montantTVA,
+        montantTTC,
+        statut: statut.toLowerCase(),
+        materiaux: body.materiaux || null,
+        notes: body.notes || null,
+        lignes: body.lignes && Array.isArray(body.lignes) ? {
+          create: body.lignes.map((ligne: any, index: number) => {
+            const ligneHT = ligne.quantite * ligne.prixUnitaire
+            const ligneTVA = ligneHT * (ligne.tauxTVA / 100)
+            const ligneTTC = ligneHT + ligneTVA
+            return {
+              description: ligne.description,
+              quantite: parseFloat(ligne.quantite),
+              unite: ligne.unite || 'unité',
+              prixUnitaire: parseFloat(ligne.prixUnitaire),
+              tauxTVA: ligne.tauxTVA || 20.0,
+              montantHT: Math.round(ligneHT * 100) / 100,
+              montantTVA: Math.round(ligneTVA * 100) / 100,
+              montantTTC: Math.round(ligneTTC * 100) / 100,
+              ordre: ligne.ordre !== undefined ? ligne.ordre : index,
+            }
+          }),
+        } : undefined,
+      },
+      include: {
+        lignes: {
+          orderBy: { ordre: 'asc' },
+        },
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: 'Devis créé avec succès',
+      data: devis,
+    })
+  } catch (error: any) {
+    console.error('Erreur lors de la création:', error)
+    return NextResponse.json(
+      { error: `Erreur lors de la création: ${error.message}` },
       { status: 500 }
     )
   }

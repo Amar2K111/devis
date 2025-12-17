@@ -48,4 +48,25 @@
   textarea:focus {
     @apply outline-none border-black;
   }
+
+  nextjs-portal {
+    left: unset !important;
+    top: unset !important;
+  }
+
+  /* Adaptation du main selon l'état de la sidebar */
+  body[data-sidebar-collapsed="true"] #main-content {
+    margin-left: 4rem;
+  }
+  
+  body:not([data-sidebar-collapsed]) #main-content {
+    margin-left: 16rem;
+  }
+  
+  @media (max-width: 1023px) {
+    body[data-sidebar-collapsed="true"] #main-content,
+    body:not([data-sidebar-collapsed]) #main-content {
+      margin-left: 0;
+    }
+  }
 }

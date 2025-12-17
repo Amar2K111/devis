@@ -12,16 +12,52 @@ datasource db {
 
 // Modèle Devis pour gérer les devis de construction
 model Devis {
-  id          String   @id @default(uuid()) // UUID comme clé primaire
-  client      String   // Nom du client
-  typeTravaux String   // Type de travaux (carrelage, peinture, plomberie, etc.)
-  dateDevis   DateTime // Date du devis
-  montant     Float    // Montant du devis
-  statut      String   // Statut : en attente, validé, annulé
-  materiaux   String?  // Matériaux utilisés (optionnel)
-  notes       String?  // Notes additionnelles (optionnel)
-  createdAt   DateTime @default(now()) // Date de création automatique
+  id              String       @id @default(uuid()) // UUID comme clé primaire
+  numeroDevis     String       @unique // Numéro unique séquentiel (ex: DEV-2024-001)
+  client          String       // Nom du client
+  clientAdresse   String?      // Adresse du client
+  clientTelephone String?      // Téléphone du client
+  clientEmail     String?      // Email du client
+  clientSiret     String?      // SIRET du client
+  typeTravaux     String       // Type de travaux (carrelage, peinture, plomberie, etc.)
+  dateDevis       DateTime     // Date du devis
+  dateValidite    DateTime?    // Date de validité du devis
+  dateDebutTravaux DateTime?   // Date de début des travaux
+  montantHT       Float        // Montant HT du devis
+  tauxTVA         Float        @default(20.0) // Taux de TVA en pourcentage
+  montantTVA      Float        // Montant de la TVA
+  montantTTC       Float       // Montant TTC du devis
+  statut          String       @default("brouillon") // Statut : brouillon, envoyé, accepté, refusé, en cours, terminé, annulé
+  materiaux       String?      // Matériaux utilisés (optionnel)
+  notes           String?      // Notes additionnelles (optionnel)
+  createdAt       DateTime     @default(now()) // Date de création automatique
+  updatedAt       DateTime     @updatedAt // Date de mise à jour automatique
+  
+  // Relation avec les lignes de devis
+  lignes          LigneDevis[]
 
   @@map("devis") // Nom de la table en base de données
+}
+
+// Modèle LigneDevis pour les lignes détaillées d'un devis
+model LigneDevis {
+  id          String   @id @default(uuid())
+  devisId     String   // ID du devis parent
+  description String   // Description de la ligne
+  quantite    Float    // Quantité
+  unite       String   @default("unité") // Unité (m², m, unité, etc.)
+  prixUnitaire Float   // Prix unitaire HT
+  tauxTVA     Float    @default(20.0) // Taux de TVA pour cette ligne
+  montantHT   Float    // Montant HT de la ligne (quantité * prixUnitaire)
+  montantTVA  Float    // Montant TVA de la ligne
+  montantTTC  Float    // Montant TTC de la ligne
+  ordre       Int      @default(0) // Ordre d'affichage
+  createdAt   DateTime @default(now())
+  
+  // Relation avec le devis
+  devis       Devis    @relation(fields: [devisId], references: [id], onDelete: Cascade)
+
+  @@map("ligne_devis")
+  @@index([devisId])
 }
 

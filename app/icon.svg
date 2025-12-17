@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Couverture du livre -->
+  <path d="M 20 20 L 20 80 L 50 80 L 50 20 Z" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 50 20 L 50 80 L 80 80 L 80 20 Z" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Ligne centrale (reliure) -->
+  <line x1="50" y1="20" x2="50" y2="80" stroke="#000" stroke-width="2"/>
+  
+  <!-- Pages intérieures -->
+  <path d="M 25 25 L 25 75" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M 30 25 L 30 75" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M 55 25 L 55 75" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M 60 25 L 60 75" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+  
+  <!-- Bord supérieur arrondi -->
+  <path d="M 20 20 Q 35 15 50 20" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+  <path d="M 50 20 Q 65 15 80 20" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+</svg>
+

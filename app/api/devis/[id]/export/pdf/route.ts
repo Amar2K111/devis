@@ -1,0 +1,52 @@
+/**
+ * API Route pour exporter un devis en PDF
+ * GET /api/devis/[id]/export/pdf
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { generateDevisPDF } from '@/lib/pdf'
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = params
+
+    // Récupérer le devis avec ses lignes
+    const devis = await prisma.devis.findUnique({
+      where: { id },
+      include: {
+        lignes: {
+          orderBy: { ordre: 'asc' },
+        },
+      },
+    })
+
+    if (!devis) {
+      return NextResponse.json(
+        { error: 'Devis non trouvé' },
+        { status: 404 }
+      )
+    }
+
+    // Générer le PDF
+    const pdfBuffer = await generateDevisPDF(devis)
+
+    // Retourner le PDF
+    return new NextResponse(pdfBuffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="devis-${devis.numeroDevis}.pdf"`,
+      },
+    })
+  } catch (error: any) {
+    console.error('Erreur lors de l\'export PDF:', error)
+    return NextResponse.json(
+      { error: `Erreur lors de l'export PDF: ${error.message}` },
+      { status: 500 }
+    )
+  }
+}
+

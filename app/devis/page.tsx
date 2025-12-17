@@ -1,21 +1,50 @@
 /**
- * Page de liste des devis - Design épuré avec filtres simples
+ * Page de liste des devis - Style Airtable
  */
 
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { Plus, Download, MoreVertical, Eye, Edit, FileText, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
+import PageHeader from '@/app/components/PageHeader'
+import StatutBadge from '@/app/components/StatutBadge'
+
+interface LigneDevis {
+  id: string
+  description: string
+  quantite: number
+  unite: string
+  prixUnitaire: number
+  tauxTVA: number
+  montantHT: number
+  montantTVA: number
+  montantTTC: number
+  ordre: number
+}
 
 interface Devis {
   id: string
+  numeroDevis: string
   client: string
+  clientAdresse: string | null
+  clientTelephone: string | null
+  clientEmail: string | null
+  clientSiret: string | null
   typeTravaux: string
   dateDevis: string
-  montant: number
+  dateValidite: string | null
+  dateDebutTravaux: string | null
+  montantHT: number
+  tauxTVA: number
+  montantTVA: number
+  montantTTC: number
   statut: string
   materiaux: string | null
   notes: string | null
+  createdAt: string
+  updatedAt: string
+  lignes: LigneDevis[]
 }
 
 interface FilterOptions {
@@ -31,7 +60,7 @@ interface PaginationInfo {
   totalPages: number
 }
 
-type SortField = 'dateDevis' | 'montant' | 'client' | 'typeTravaux' | 'statut'
+type SortField = 'dateDevis' | 'montantTTC' | 'montantHT' | 'client' | 'typeTravaux' | 'statut' | 'numeroDevis'
 type SortOrder = 'asc' | 'desc'
 
 export default function DevisPage() {
@@ -53,6 +82,8 @@ export default function DevisPage() {
   const [sortBy, setSortBy] = useState<SortField>('dateDevis')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [page, setPage] = useState(1)
+  const [exportingExcel, setExportingExcel] = useState(false)
+  const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [pagination, setPagination] = useState<PaginationInfo>({
     total: 0,
     page: 1,
@@ -94,7 +125,8 @@ export default function DevisPage() {
       if (filters.client && !searchDebounced) params.append('client', filters.client)
       if (filters.typeTravaux && !searchDebounced) params.append('typeTravaux', filters.typeTravaux)
       if (filters.statut) params.append('statut', filters.statut)
-      params.append('sortBy', sortBy)
+      const sortByMapped = sortBy === 'montant' ? 'montantTTC' : sortBy
+      params.append('sortBy', sortByMapped)
       params.append('sortOrder', sortOrder)
       params.append('page', page.toString())
       params.append('pageSize', pagination.pageSize.toString())
@@ -129,6 +161,7 @@ export default function DevisPage() {
       const response = await fetch(`/api/devis?id=${id}`, { method: 'DELETE' })
       if (response.ok) {
         loadDevis()
+        setOpenMenu(null)
       }
     } catch (error) {
       alert('Erreur lors de la suppression')
@@ -151,66 +184,93 @@ export default function DevisPage() {
     setPage(1)
   }
 
-  const hasActiveFilters = searchDebounced || filters.client || filters.typeTravaux || filters.statut
+  const handleExportExcel = async () => {
+    setExportingExcel(true)
+    try {
+      const params = new URLSearchParams()
+      if (searchDebounced) params.append('search', searchDebounced)
+      if (filters.client && !searchDebounced) params.append('client', filters.client)
+      if (filters.typeTravaux && !searchDebounced) params.append('typeTravaux', filters.typeTravaux)
+      if (filters.statut) params.append('statut', filters.statut)
+
+      const response = await fetch(`/api/devis/export/excel?${params.toString()}`)
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `devis-export-${new Date().toISOString().split('T')[0]}.xlsx`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      } else {
+        const data = await response.json()
+        alert(data.error || 'Erreur lors de l\'export Excel')
+      }
+    } catch (error: any) {
+      alert(`Erreur: ${error.message}`)
+    } finally {
+      setExportingExcel(false)
+    }
+  }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('fr-FR')
+    return new Date(dateString).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    })
   }
 
   const formatMontant = (montant: number) => {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(montant)
   }
 
-  const getStatutColor = (statut: string) => {
-    const colors: Record<string, string> = {
-      'validé': 'bg-green-100 text-green-800',
-      'annulé': 'bg-red-100 text-red-800',
-      'en attente': 'bg-yellow-100 text-yellow-800',
-    }
-    return colors[statut.toLowerCase()] || 'bg-gray-100 text-gray-800'
+  const hasActiveFilters = searchDebounced || filters.client || filters.typeTravaux || filters.statut
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortBy !== field) return null
+    return sortOrder === 'asc' ? (
+      <ChevronUp className="ml-1 h-4 w-4" />
+    ) : (
+      <ChevronDown className="ml-1 h-4 w-4" />
+    )
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-900">Devis</h1>
-        <button
-          onClick={() => router.push('/import')}
-          className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-        >
-          + Importer
-        </button>
-      </div>
-
-      {/* Recherche et Filtres */}
-      <div className="mb-6 space-y-4">
-        <div className="flex gap-4">
-          <input
-            type="text"
-            placeholder="Rechercher..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 rounded-md border border-gray-300 px-4 py-2 text-sm focus:border-black focus:outline-none"
-          />
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-          >
-            {showFilters ? 'Masquer' : 'Filtres'}
-          </button>
-          {hasActiveFilters && (
+    <div className="min-h-screen bg-gray-50">
+      <PageHeader
+        title="Devis"
+        description={`${pagination.total} devis au total`}
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Rechercher un devis, client, type de travaux..."
+        actions={
+          <>
             <button
-              onClick={resetFilters}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              onClick={handleExportExcel}
+              disabled={exportingExcel || devis.length === 0}
+              className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Réinitialiser
+              <Download className="h-4 w-4" />
+              {exportingExcel ? 'Export...' : 'Excel'}
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => router.push('/devis/nouveau')}
+              className="flex items-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              <Plus className="h-4 w-4" />
+              Nouveau devis
+            </button>
+          </>
+        }
+      />
 
-        {/* Filtres */}
-        {showFilters && (
-          <div className="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:grid-cols-3">
+      {/* Filtres */}
+      {showFilters && (
+        <div className="border-b border-gray-200 bg-white px-8 py-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">Client</label>
               <select
@@ -225,7 +285,6 @@ export default function DevisPage() {
                 ))}
               </select>
             </div>
-
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">Type de travaux</label>
               <select
@@ -240,7 +299,6 @@ export default function DevisPage() {
                 ))}
               </select>
             </div>
-
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">Statut</label>
               <select
@@ -255,125 +313,228 @@ export default function DevisPage() {
               </select>
             </div>
           </div>
-        )}
-
-        {hasActiveFilters && (
-          <div className="text-sm text-gray-600">
-            {pagination.total} résultat{pagination.total > 1 ? 's' : ''}
-          </div>
-        )}
-      </div>
-
-      {/* Tableau */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="text-sm text-gray-500">Chargement...</div>
-        </div>
-      ) : devis.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
-          <p className="text-sm text-gray-500">Aucun devis trouvé</p>
           {hasActiveFilters && (
             <button
               onClick={resetFilters}
-              className="mt-4 text-sm text-gray-600 underline hover:text-gray-900"
+              className="mt-4 text-sm text-gray-600 hover:text-gray-900"
             >
               Réinitialiser les filtres
             </button>
           )}
         </div>
-      ) : (
-        <>
-          <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-            <table className="w-full">
-              <thead className="border-b border-gray-200 bg-gray-50">
-                <tr>
-                  <th 
-                    onClick={() => handleSort('client')} 
-                    className="cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-600 hover:bg-gray-100"
-                  >
-                    Client {sortBy === 'client' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th 
-                    onClick={() => handleSort('typeTravaux')} 
-                    className="cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-600 hover:bg-gray-100"
-                  >
-                    Type {sortBy === 'typeTravaux' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th 
-                    onClick={() => handleSort('dateDevis')} 
-                    className="cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-600 hover:bg-gray-100"
-                  >
-                    Date {sortBy === 'dateDevis' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th 
-                    onClick={() => handleSort('montant')} 
-                    className="cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-600 hover:bg-gray-100"
-                  >
-                    Montant {sortBy === 'montant' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th 
-                    onClick={() => handleSort('statut')} 
-                    className="cursor-pointer px-4 py-3 text-left text-xs font-medium text-gray-600 hover:bg-gray-100"
-                  >
-                    Statut {sortBy === 'statut' && (sortOrder === 'asc' ? '↑' : '↓')}
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {devis.map((devi) => (
-                  <tr key={devi.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{devi.client}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{devi.typeTravaux}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{formatDate(devi.dateDevis)}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{formatMontant(devi.montant)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block rounded-full px-2 py-1 text-xs font-medium ${getStatutColor(devi.statut)}`}>
-                        {devi.statut}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleDelete(devi.id)}
-                        className="text-xs text-red-600 hover:text-red-800"
-                      >
-                        Supprimer
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-4">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="rounded-md border border-gray-300 px-3 py-1 text-sm disabled:opacity-50"
-              >
-                Précédent
-              </button>
-              <span className="text-sm text-gray-600">
-                Page {pagination.page} / {pagination.totalPages}
-              </span>
-              <button
-                onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
-                disabled={page === pagination.totalPages}
-                className="rounded-md border border-gray-300 px-3 py-1 text-sm disabled:opacity-50"
-              >
-                Suivant
-              </button>
-            </div>
-          )}
-
-          <div className="mt-4 text-center text-xs text-gray-500">
-            {pagination.total} devis au total
-          </div>
-        </>
       )}
+
+      {/* Tableau style Airtable */}
+      <div className="px-8 py-6">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-sm text-gray-500">Chargement...</div>
+          </div>
+        ) : devis.length === 0 ? (
+          <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
+            <p className="text-sm text-gray-500">Aucun devis trouvé</p>
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="mt-4 text-sm text-gray-600 underline hover:text-gray-900"
+              >
+                Réinitialiser les filtres
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th
+                      onClick={() => handleSort('numeroDevis')}
+                      className="cursor-pointer px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-100"
+                    >
+                      <div className="flex items-center">
+                        N° Devis
+                        <SortIcon field="numeroDevis" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('client')}
+                      className="cursor-pointer px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-100"
+                    >
+                      <div className="flex items-center">
+                        Client
+                        <SortIcon field="client" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('typeTravaux')}
+                      className="cursor-pointer px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-100"
+                    >
+                      <div className="flex items-center">
+                        Type travaux
+                        <SortIcon field="typeTravaux" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('dateDevis')}
+                      className="cursor-pointer px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-100"
+                    >
+                      <div className="flex items-center">
+                        Date
+                        <SortIcon field="dateDevis" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('montantTTC')}
+                      className="cursor-pointer px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-100"
+                    >
+                      <div className="flex items-center justify-end">
+                        Montant TTC
+                        <SortIcon field="montantTTC" />
+                      </div>
+                    </th>
+                    <th
+                      onClick={() => handleSort('statut')}
+                      className="cursor-pointer px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hover:bg-gray-100"
+                    >
+                      <div className="flex items-center">
+                        Statut
+                        <SortIcon field="statut" />
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 bg-white">
+                  {devis.map((devi) => (
+                    <tr key={devi.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900">
+                        {devi.numeroDevis}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{devi.client}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{devi.typeTravaux}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                        {formatDate(devi.dateDevis)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">
+                        {formatMontant(devi.montantTTC)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatutBadge statut={devi.statut} />
+                      </td>
+                      <td className="relative whitespace-nowrap px-4 py-3 text-right text-sm">
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenMenu(openMenu === devi.id ? null : devi.id)}
+                            className="rounded-md p-1 hover:bg-gray-100"
+                          >
+                            <MoreVertical className="h-4 w-4 text-gray-500" />
+                          </button>
+                          {openMenu === devi.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-10"
+                                onClick={() => setOpenMenu(null)}
+                              />
+                              <div className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-gray-200 bg-white shadow-lg">
+                                <div className="py-1">
+                                  <button
+                                    onClick={() => {
+                                      router.push(`/devis/${devi.id}`)
+                                      setOpenMenu(null)
+                                    }}
+                                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                    Voir
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      router.push(`/devis/${devi.id}/editer`)
+                                      setOpenMenu(null)
+                                    }}
+                                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                    Modifier
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        const response = await fetch(`/api/devis/${devi.id}/export/pdf`)
+                                        if (response.ok) {
+                                          const blob = await response.blob()
+                                          const url = window.URL.createObjectURL(blob)
+                                          const a = document.createElement('a')
+                                          a.href = url
+                                          a.download = `devis-${devi.numeroDevis}.pdf`
+                                          document.body.appendChild(a)
+                                          a.click()
+                                          window.URL.revokeObjectURL(url)
+                                          document.body.removeChild(a)
+                                        }
+                                        setOpenMenu(null)
+                                      } catch (error) {
+                                        alert('Erreur lors de l\'export PDF')
+                                      }
+                                    }}
+                                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    Export PDF
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      handleDelete(devi.id)
+                                    }}
+                                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Supprimer
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {pagination.totalPages > 1 && (
+              <div className="border-t border-gray-200 bg-gray-50 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-700">
+                    Page {pagination.page} sur {pagination.totalPages}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm disabled:opacity-50"
+                    >
+                      Précédent
+                    </button>
+                    <button
+                      onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+                      disabled={page === pagination.totalPages}
+                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm disabled:opacity-50"
+                    >
+                      Suivant
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
