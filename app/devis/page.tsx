@@ -125,7 +125,7 @@ export default function DevisPage() {
       if (filters.client && !searchDebounced) params.append('client', filters.client)
       if (filters.typeTravaux && !searchDebounced) params.append('typeTravaux', filters.typeTravaux)
       if (filters.statut) params.append('statut', filters.statut)
-      const sortByMapped = sortBy === 'montant' ? 'montantTTC' : sortBy
+      const sortByMapped = (sortBy as string) === 'montant' ? 'montantTTC' : sortBy
       params.append('sortBy', sortByMapped)
       params.append('sortOrder', sortOrder)
       params.append('page', page.toString())

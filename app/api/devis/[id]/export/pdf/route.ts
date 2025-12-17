@@ -34,15 +34,15 @@ export async function GET(
     // Générer le PDF
     const pdfBuffer = await generateDevisPDF(devis)
 
-    // Convertir en Uint8Array pour NextResponse
-    const pdfArray = pdfBuffer instanceof Buffer 
-      ? new Uint8Array(pdfBuffer) 
-      : pdfBuffer instanceof Uint8Array 
-        ? pdfBuffer 
-        : new Uint8Array(Buffer.from(pdfBuffer))
-
+    // Convertir Buffer en Uint8Array pour Response
+    const uint8Array = pdfBuffer instanceof Buffer 
+      ? new Uint8Array(pdfBuffer.buffer, pdfBuffer.byteOffset, pdfBuffer.byteLength)
+      : pdfBuffer instanceof Uint8Array
+        ? pdfBuffer
+        : new Uint8Array(pdfBuffer)
+    
     // Retourner le PDF
-    return new NextResponse(pdfArray, {
+    return new Response(uint8Array as any, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="devis-${devis.numeroDevis}.pdf"`,

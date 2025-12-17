@@ -9,7 +9,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
-import pdfParse from 'pdf-parse'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
@@ -41,7 +40,9 @@ export async function POST(request: NextRequest) {
     // Traiter selon le type de fichier
     if (fileExtension === '.pdf') {
       // Parser le PDF
-      const pdfData = await pdfParse(Buffer.from(buffer))
+      const pdfParseModule = await import('pdf-parse')
+      const pdfParseFn = (pdfParseModule as any).default || pdfParseModule
+      const pdfData = await pdfParseFn(Buffer.from(buffer))
       const parsedData = parsePDFDevis(pdfData.text)
       if (!parsedData) {
         return NextResponse.json(

@@ -13,9 +13,10 @@ interface DevisWithLignes extends Devis {
  * Génère le HTML pour un devis
  */
 function generateDevisHTML(devis: DevisWithLignes): string {
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-'
-    return new Date(dateString).toLocaleDateString('fr-FR', {
+  const formatDate = (date: string | Date | null) => {
+    if (!date) return '-'
+    const dateObj = date instanceof Date ? date : new Date(date)
+    return dateObj.toLocaleDateString('fr-FR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
