@@ -11,6 +11,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { prisma } from '@/lib/prisma'
 
+// Polyfill pour DOMMatrix si nécessaire (pour éviter les erreurs sur Vercel)
+if (typeof globalThis.DOMMatrix === 'undefined') {
+  globalThis.DOMMatrix = class DOMMatrix {
+    constructor(init?: string | number[]) {
+      // Polyfill minimal pour DOMMatrix
+    }
+    static fromMatrix(other?: DOMMatrix) {
+      return new DOMMatrix()
+    }
+  } as any
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -39,18 +51,29 @@ export async function POST(request: NextRequest) {
 
     // Traiter selon le type de fichier
     if (fileExtension === '.pdf') {
-      // Parser le PDF
-      const pdfParseModule = await import('pdf-parse')
-      const pdfParseFn = (pdfParseModule as any).default || pdfParseModule
-      const pdfData = await pdfParseFn(Buffer.from(buffer))
-      const parsedData = parsePDFDevis(pdfData.text)
-      if (!parsedData) {
+      // Parser le PDF avec gestion d'erreur améliorée
+      try {
+        const pdfParseModule = await import('pdf-parse')
+        const pdfParseFn = (pdfParseModule as any).default || pdfParseModule
+        const pdfData = await pdfParseFn(Buffer.from(buffer), {
+          // Options pour éviter les erreurs DOM
+          max: 0, // Pas de limite de pages
+        })
+        const parsedData = parsePDFDevis(pdfData.text)
+        if (!parsedData) {
+          return NextResponse.json(
+            { error: 'Impossible de parser le PDF. Vérifiez que c\'est un devis au format attendu.' },
+            { status: 400 }
+          )
+        }
+        data = [parsedData]
+      } catch (pdfError: any) {
+        console.error('Erreur lors du parsing PDF:', pdfError)
         return NextResponse.json(
-          { error: 'Impossible de parser le PDF. Vérifiez que c\'est un devis au format attendu.' },
-          { status: 400 }
+          { error: `Erreur lors de l'import du PDF: ${pdfError.message || 'Erreur inconnue'}` },
+          { status: 500 }
         )
       }
-      data = [parsedData]
     } else {
       // Lire le fichier Excel
       const workbook = XLSX.read(buffer, { type: 'buffer' })

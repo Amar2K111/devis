@@ -319,10 +319,19 @@ export const generateDevisPDF = async (devis: DevisWithLignes): Promise<Buffer> 
   let browser
   
   try {
-    // Lancer Puppeteer
+    // Lancer Puppeteer avec configuration pour Vercel
     browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+      ],
     })
     
     const page = await browser.newPage()
