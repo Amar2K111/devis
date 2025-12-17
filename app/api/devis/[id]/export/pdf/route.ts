@@ -35,7 +35,7 @@ export async function GET(
     const pdfBuffer = await generateDevisPDF(devis)
 
     // Retourner le PDF
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfBuffer instanceof Buffer ? pdfBuffer : Buffer.from(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="devis-${devis.numeroDevis}.pdf"`,
