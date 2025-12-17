@@ -58,15 +58,18 @@ export async function POST(request: NextRequest) {
         const pdfjsModule = await import('pdfjs-dist')
         const pdfjs = pdfjsModule.default || pdfjsModule
         
-        // Configurer le worker (optionnel mais recommandé)
+        // Désactiver le worker pour l'environnement serveur (Vercel/Node.js)
+        // Le worker n'est nécessaire que dans le navigateur
         if (pdfjs.GlobalWorkerOptions) {
-          pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
+          pdfjs.GlobalWorkerOptions.workerSrc = false as any
         }
         
         // Charger le document PDF
         const loadingTask = pdfjs.getDocument({
           data: new Uint8Array(buffer),
           useSystemFonts: true,
+          // Désactiver le worker pour éviter les erreurs sur Vercel
+          verbosity: 0, // Réduire les logs
         })
         
         const pdfDocument = await loadingTask.promise
