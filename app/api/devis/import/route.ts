@@ -343,7 +343,7 @@ function parsePDFDevis(text: string): any | null {
       
       for (const line of tableauLines) {
         // Ignorer les lignes d'en-tête et de séparation
-        if (line.includes('N° | Désignation') || line.match(/^[\s|-\+]+$/)) continue
+        if (line.includes('N° | Désignation') || line.match(/^[\s|\+\-]+$/)) continue
         
         const cells = line.split('|').map(c => c.trim()).filter(c => c.length > 0)
         if (cells.length >= 6) {
