@@ -54,22 +54,19 @@ export async function POST(request: NextRequest) {
       // Parser le PDF avec pdfjs-dist (Mozilla PDF.js) - solution fiable et compatible
       try {
         // Importer pdfjs-dist de manière dynamique
+        // Utiliser le chemin correct selon la version
         const pdfjsModule = await import('pdfjs-dist')
         const pdfjs = pdfjsModule.default || pdfjsModule
         
-        // Pour Node.js/Next.js, désactiver le worker ou utiliser le worker local
-        // Le worker n'est pas nécessaire pour l'extraction de texte côté serveur
+        // Configurer le worker (optionnel mais recommandé)
         if (pdfjs.GlobalWorkerOptions) {
-          // Désactiver le worker pour l'environnement serveur
-          pdfjs.GlobalWorkerOptions.workerSrc = false as any
+          pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
         }
         
         // Charger le document PDF
         const loadingTask = pdfjs.getDocument({
           data: new Uint8Array(buffer),
           useSystemFonts: true,
-          // Désactiver le worker pour éviter les problèmes de chargement
-          verbosity: 0, // Réduire les logs
         })
         
         const pdfDocument = await loadingTask.promise
