@@ -82,10 +82,15 @@ export async function POST(request: NextRequest) {
         }
         
         // Parser le texte extrait
+        // Logger les premières lignes pour debug (limité à 500 caractères)
+        console.log('Texte extrait du PDF (premiers 500 caractères):', fullText.substring(0, 500))
+        
         const parsedData = parsePDFDevis(fullText)
         if (!parsedData) {
+          // Logger plus d'informations pour debug
+          console.log('Échec du parsing. Texte complet (premiers 1000 caractères):', fullText.substring(0, 1000))
           return NextResponse.json(
-            { error: 'Impossible de parser le PDF. Vérifiez que c\'est un devis au format attendu.' },
+            { error: 'Impossible de parser le PDF. Vérifiez que c\'est un devis au format attendu. Le format du PDF pourrait être différent de celui attendu.' },
             { status: 400 }
           )
         }
@@ -459,8 +464,30 @@ function parsePDFDevis(text: string): any | null {
       montantTTC = montantHT + montantTVA
     }
 
-    if (!client || montantTTC === 0) {
+    // Log pour debug
+    console.log('Parsing PDF - Client:', client, 'Montant TTC:', montantTTC, 'Lignes:', lignes.length, 'Date:', dateDevis)
+    
+    // Assouplir les conditions - accepter même si montantTTC est 0 (peut être calculé plus tard)
+    if (!client) {
+      console.log('Parsing échoué: pas de client trouvé')
       return null
+    }
+    
+    // Si montantTTC est 0 mais qu'on a des lignes, calculer depuis les lignes
+    if (montantTTC === 0 && lignes.length > 0) {
+      montantHT = lignes.reduce((sum, l) => sum + (l.montantHT || 0), 0)
+      montantTVA = lignes.reduce((sum, l) => sum + (l.montantTVA || 0), 0)
+      montantTTC = montantHT + montantTVA
+      console.log('Montants recalculés depuis les lignes:', { montantHT, montantTVA, montantTTC })
+    }
+    
+    // Accepter même sans montant si on a au moins un client
+    if (montantTTC === 0 && lignes.length === 0) {
+      console.log('Parsing échoué: pas de montant ni de lignes trouvés')
+      // Utiliser des valeurs par défaut minimales
+      montantTTC = 0
+      montantHT = 0
+      montantTVA = 0
     }
 
     return {
